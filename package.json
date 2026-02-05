@@ -1,0 +1,31 @@
+{
+  "name": "how-to-do_hello-world_a-million-times",
+  "version": "1.0.0",
+  "description": "JavaScript系で100万回Hello, Worldl!する方法",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "node scripts/test-interactive.js",
+    "test:all": "vitest run",
+    "test:watch": "vitest",
+    "eval": "node scripts/run-interactive.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/oto-home/how-to-do_hello-world_a-million-times.js.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/oto-home/how-to-do_hello-world_a-million-times.js/issues"
+  },
+  "homepage": "https://github.com/oto-home/how-to-do_hello-world_a-million-times.js#readme",
+  "devDependencies": {
+    "closewords": "^2.3.1",
+    "coffeescript": "^2.7.0",
+    "cross-env": "^10.1.0",
+    "ts-node": "^10.9.2",
+    "vitest": "^4.0.18"
+  }
+}

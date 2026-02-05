@@ -1,0 +1,257 @@
+name: PR Validation
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  validate-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v44
+        with:
+          files_yaml: |
+            allowed:
+              - 'src/**/main.js'
+              - 'src/**/main.cjs'
+              - 'src/**/main.mjs'
+              - 'src/**/main.ts'
+              - 'src/**/main.coffee'
+
+      - name: Check for deleted directories
+        id: deleted-check
+        run: |
+          echo "## 🔍 Checking for deleted directories..." >> $GITHUB_STEP_SUMMARY
+
+          DELETED_DIRS=""
+          DELETED_COUNT=0
+
+          # Get list of deleted files from the PR
+          DELETED_FILES=$(git diff --name-status origin/${{ github.base_ref }}...HEAD | grep "^D" | awk '{print $2}')
+
+          for file in $DELETED_FILES; do
+            if [[ $file =~ ^src/([^/]+)/main\.(js|cjs|mjs|ts|coffee)$ ]]; then
+              DIR_NAME="${BASH_REMATCH[1]}"
+              DELETED_DIRS="$DELETED_DIRS $DIR_NAME"
+              DELETED_COUNT=$((DELETED_COUNT + 1))
+              echo "::warning::⚠️ Directory deleted: src/$DIR_NAME/"
+            fi
+          done
+
+          if [ $DELETED_COUNT -gt 0 ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### ⚠️ Warning: Directories Deleted" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "The following implementation directories have been deleted:" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            for dir in $DELETED_DIRS; do
+              echo "- \`src/$dir/\`" >> $GITHUB_STEP_SUMMARY
+            done
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "deleted_dirs=$DELETED_DIRS" >> $GITHUB_OUTPUT
+            echo "has_deletions=true" >> $GITHUB_OUTPUT
+          else
+            echo "✅ No directories were deleted." >> $GITHUB_STEP_SUMMARY
+            echo "has_deletions=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Validate changed files
+        id: validate-files
+        run: |
+          echo "## 📁 Validating changed files..." >> $GITHUB_STEP_SUMMARY
+
+          # Get all changed files
+          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
+
+          INVALID_FILES=""
+          VALID_DIRS=""
+          HAS_INVALID=false
+
+          # Pattern for allowed files
+          ALLOWED_PATTERN="^src/[^/]+/main\.(js|cjs|mjs|ts|coffee)$"
+
+          for file in $CHANGED_FILES; do
+            if [[ $file =~ $ALLOWED_PATTERN ]]; then
+              # Extract directory name
+              DIR_NAME=$(echo "$file" | sed -E 's|^src/([^/]+)/main\.(js\|cjs\|mjs\|ts\|coffee)$|\1|')
+              if [[ ! " $VALID_DIRS " =~ " $DIR_NAME " ]]; then
+                VALID_DIRS="$VALID_DIRS $DIR_NAME"
+              fi
+              echo "✅ Allowed: $file"
+            else
+              INVALID_FILES="$INVALID_FILES $file"
+              HAS_INVALID=true
+              echo "::error::❌ Invalid file change: $file"
+            fi
+          done
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "$HAS_INVALID" = true ]; then
+            echo "### ❌ Invalid Files Detected" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "The following files are not allowed to be changed:" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            for file in $INVALID_FILES; do
+              echo "- \`$file\`" >> $GITHUB_STEP_SUMMARY
+            done
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Only \`src/[dirname]/main.[js|cjs|mjs|ts|coffee]\` files are allowed.**" >> $GITHUB_STEP_SUMMARY
+            echo "has_invalid=true" >> $GITHUB_OUTPUT
+          else
+            echo "### ✅ All Changed Files Valid" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "All changed files follow the allowed pattern." >> $GITHUB_STEP_SUMMARY
+            echo "has_invalid=false" >> $GITHUB_OUTPUT
+          fi
+
+          # Trim leading space
+          VALID_DIRS=$(echo "$VALID_DIRS" | xargs)
+          echo "valid_dirs=$VALID_DIRS" >> $GITHUB_OUTPUT
+
+      - name: Run tests for changed directories
+        id: run-tests
+        if: steps.validate-files.outputs.valid_dirs != ''
+        run: |
+          echo "## 🧪 Running Tests..." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          VALID_DIRS="${{ steps.validate-files.outputs.valid_dirs }}"
+          TEST_FAILED=false
+          FAILED_DIRS=""
+          PASSED_DIRS=""
+
+          for dir in $VALID_DIRS; do
+            echo "Testing: $dir"
+            if npm test "$dir"; then
+              echo "✅ Test passed: $dir"
+              PASSED_DIRS="$PASSED_DIRS $dir"
+            else
+              echo "::error::❌ Test failed: $dir"
+              TEST_FAILED=true
+              FAILED_DIRS="$FAILED_DIRS $dir"
+            fi
+          done
+
+          if [ -n "$PASSED_DIRS" ]; then
+            echo "### ✅ Passed Tests" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            for dir in $PASSED_DIRS; do
+              echo "- \`$dir\`" >> $GITHUB_STEP_SUMMARY
+            done
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "$TEST_FAILED" = true ]; then
+            echo "### ❌ Failed Tests" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            for dir in $FAILED_DIRS; do
+              echo "- \`$dir\`" >> $GITHUB_STEP_SUMMARY
+            done
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "test_failed=true" >> $GITHUB_OUTPUT
+          else
+            echo "test_failed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Close PR if validation failed
+        if: steps.validate-files.outputs.has_invalid == 'true' || steps.run-tests.outputs.test_failed == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const hasInvalidFiles = '${{ steps.validate-files.outputs.has_invalid }}' === 'true';
+            const testFailed = '${{ steps.run-tests.outputs.test_failed }}' === 'true';
+
+            let body = '## ❌ PR Validation Failed\n\n';
+            body += 'This PR has been automatically closed due to validation failures:\n\n';
+
+            if (hasInvalidFiles) {
+              body += '### 📁 Invalid File Changes\n';
+              body += 'Only `src/[dirname]/main.[js|cjs|mjs|ts|coffee]` files are allowed to be changed.\n\n';
+            }
+
+            if (testFailed) {
+              body += '### 🧪 Test Failures\n';
+              body += 'One or more tests failed. Please ensure `npm test [dirname]` passes for all changed implementations.\n\n';
+            }
+
+            body += '---\n';
+            body += 'Please review the [Contributing Guidelines](CONTRIBUTING.md) and submit a new PR with the necessary fixes.';
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body
+            });
+
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              state: 'closed'
+            });
+
+            core.setFailed('PR validation failed and has been closed.');
+
+      - name: Add warning comment for deletions
+        if: steps.deleted-check.outputs.has_deletions == 'true' && steps.validate-files.outputs.has_invalid != 'true' && steps.run-tests.outputs.test_failed != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const deletedDirs = '${{ steps.deleted-check.outputs.deleted_dirs }}'.trim().split(' ');
+
+            let body = '## ⚠️ Warning: Implementation Directories Deleted\n\n';
+            body += 'This PR deletes the following implementation directories:\n\n';
+
+            for (const dir of deletedDirs) {
+              if (dir) {
+                body += `- \`src/${dir}/\`\n`;
+              }
+            }
+
+            body += '\nPlease confirm this is intentional before merging.';
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body
+            });
+
+      - name: Summary
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ steps.validate-files.outputs.has_invalid }}" = "true" ] || [ "${{ steps.run-tests.outputs.test_failed }}" = "true" ]; then
+            echo "## ❌ Validation Failed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "This PR has been automatically closed." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## ✅ Validation Passed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "All checks passed successfully!" >> $GITHUB_STEP_SUMMARY
+          fi
