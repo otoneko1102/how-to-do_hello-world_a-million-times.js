@@ -12,6 +12,10 @@ const ALLOWED_FILENAMES = [
   "main.ts",
   "main.coffee",
 ];
+const ALLOWED_ADDITIONAL_FILES = ["README.md"];
+
+// README.md警告を表示済みのディレクトリを記録
+const warnedDirectories = new Set();
 
 // src/ からディレクトリを取得
 const srcDir = join(process.cwd(), "src");
@@ -44,17 +48,34 @@ function findMainFile(dirPath) {
     throw new Error(`ディレクトリ内にファイルが存在しません: ${dirPath}`);
   }
 
-  if (files.length > 1) {
+  // README.mdを除外してmainファイルをチェック
+  const mainFiles = files.filter(
+    (f) => !ALLOWED_ADDITIONAL_FILES.includes(f),
+  );
+
+  if (mainFiles.length === 0) {
+    throw new Error(`ディレクトリ内にmainファイルが存在しません: ${dirPath}`);
+  }
+
+  if (mainFiles.length > 1) {
     throw new Error(
-      `ディレクトリ内に複数のファイルが存在します: ${files.join(", ")}`,
+      `ディレクトリ内に複数のmainファイルが存在します: ${mainFiles.join(", ")}`,
     );
   }
 
-  const fileName = files[0];
+  const fileName = mainFiles[0];
   if (!ALLOWED_FILENAMES.includes(fileName)) {
     throw new Error(
       `許可されていないファイル名です: ${fileName}。許可: ${ALLOWED_FILENAMES.join(", ")}`,
     );
+  }
+
+  // README.mdの存在をチェック（警告のみ、一度だけ表示）
+  if (!files.includes("README.md") && !warnedDirectories.has(dirPath)) {
+    console.warn(
+      `⚠️  [${dirPath}] README.mdがありません。実装の説明を追加することを推奨します。`,
+    );
+    warnedDirectories.add(dirPath);
   }
 
   return fileName;
@@ -85,12 +106,19 @@ describe("Hello World 100万回出力テスト", () => {
         fileContent = readFileSync(filePath, "utf-8");
       });
 
-      it("ディレクトリ内に唯一のファイルが存在すること", () => {
+      it("ディレクトリ内にmainファイルとREADME.md以外のファイルが存在しないこと", () => {
         const files = readdirSync(dirPath).filter((f) => {
           const fullPath = join(dirPath, f);
           return statSync(fullPath).isFile();
         });
-        expect(files.length).toBe(1);
+        
+        const invalidFiles = files.filter(
+          (f) =>
+            !ALLOWED_FILENAMES.includes(f) &&
+            !ALLOWED_ADDITIONAL_FILES.includes(f),
+        );
+
+        expect(invalidFiles).toEqual([]);
       });
 
       it("ファイル名が許可されたもの（main.js/main.cjs/main.mjs/main.ts）であること", () => {

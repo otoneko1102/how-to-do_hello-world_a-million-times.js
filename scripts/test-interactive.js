@@ -21,11 +21,11 @@ const rl = createInterface({
 });
 
 // コマンドライン引数をチェック
-const argDir = process.argv[2];
+const argDir = process.argv.slice(2).join(" ").trim();
 
 if (argDir) {
   // 引数が指定されている場合は対話をスキップ
-  handleSelection(argDir.trim());
+  handleSelection(argDir);
 } else {
   // 引数がない場合は対話式
   console.log("利用可能なディレクトリ:");
