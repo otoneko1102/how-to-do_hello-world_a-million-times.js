@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import { readFileSync, statSync, readdirSync } from "fs";
 import { join } from "path";
 import { spawn } from "child_process";
@@ -96,15 +96,9 @@ describe("Hello World 100万回出力テスト", () => {
   testTargets.forEach((target) => {
     describe(`src/${target}/`, () => {
       const dirPath = join(process.cwd(), "src", target);
-      let fileName;
-      let filePath;
-      let fileContent;
-
-      beforeEach(() => {
-        fileName = findMainFile(dirPath);
-        filePath = join(dirPath, fileName);
-        fileContent = readFileSync(filePath, "utf-8");
-      });
+      const fileName = findMainFile(dirPath);
+      const filePath = join(dirPath, fileName);
+      const fileContent = readFileSync(filePath, "utf-8");
 
       it("ディレクトリ内にmainファイルとREADME.md以外のファイルが存在しないこと", () => {
         const files = readdirSync(dirPath).filter((f) => {
@@ -181,7 +175,7 @@ describe("Hello World 100万回出力テスト", () => {
 
       it('100万回 "Hello, World!" を出力すること', async () => {
         const [command, ...args] = getRunCommand(fileName);
-        const output = await new Promise((resolve, reject) => {
+        const count = await new Promise((resolve, reject) => {
           const env = { ...process.env };
           if (fileName === "main.ts") {
             env.NODE_OPTIONS = "--loader ts-node/esm";
@@ -190,13 +184,22 @@ describe("Hello World 100万回出力テスト", () => {
             shell: true,
             env,
           });
-          let stdout = "";
-          let stderr = "";
+          let total = 0;
+          let remainder = "";
+          const needle = "Hello, World!";
 
           child.stdout.on("data", (data) => {
-            stdout += data.toString();
+            const chunk = remainder + data.toString();
+            let idx = 0;
+            while ((idx = chunk.indexOf(needle, idx)) !== -1) {
+              total++;
+              idx += needle.length;
+            }
+            // 末尾にneedleの一部が残っている可能性を考慮
+            remainder = chunk.slice(-(needle.length - 1));
           });
 
+          let stderr = "";
           child.stderr.on("data", (data) => {
             stderr += data.toString();
           });
@@ -205,14 +208,10 @@ describe("Hello World 100万回出力テスト", () => {
             if (code !== 0) {
               reject(new Error(`プロセスがエラーで終了しました: ${stderr}`));
             } else {
-              resolve(stdout);
+              resolve(total);
             }
           });
         });
-
-        // "Hello, World!" の出現回数をカウント
-        const matches = output.match(/Hello, World!/g);
-        const count = matches ? matches.length : 0;
 
         expect(count).toBe(EXPECTED_COUNT);
       });
