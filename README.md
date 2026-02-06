@@ -4,7 +4,8 @@
 
 **JavaScript系で100万回Hello, Worldl!する方法**
 
-ループや再帰を使わずに、100万回 "Hello, World!" を出力するクリエイティブな方法を集めています。
+ループや再帰を使わずに、100万回 "Hello, World!" を出力するクリエイティブな方法を集めています。  
+Linux(Ubuntu)環境を想定しています。
 
 > [!TIP]
 > 元ネタ: https://youtu.be/OHOTGcQmndQ

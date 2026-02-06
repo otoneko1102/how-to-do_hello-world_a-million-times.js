@@ -55,6 +55,10 @@ README.mdには以下を含めてください：
 
 Pull Requestを送信する前に、ローカルでテストを実行してください：
 
+> [!WARNING]  
+> Linux(Ubuntu)環境で実行できるコードでないとGitHub Actionsでテストが通りません。  
+> Linux実機かWSLなどでテストをしてからPull Requestを出すか、GitHub Actionsで都度テストをしてください！
+
 ```bash
 # 依存関係のインストール
 npm install
