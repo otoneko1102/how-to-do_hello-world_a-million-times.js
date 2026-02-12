@@ -8,7 +8,8 @@
     "test": "node scripts/test-interactive.js",
     "test:all": "vitest run",
     "test:watch": "vitest",
-    "eval": "node scripts/run-interactive.js"
+    "eval": "node scripts/run-interactive.js",
+    "dev-format": "prettier --tab-width=2 --write ./scripts ./test"
   },
   "repository": {
     "type": "git",
@@ -27,6 +28,7 @@
     "coffeescript": "^2.7.0",
     "cross-env": "^10.1.0",
     "livescript": "^1.6.0",
+    "prettier": "^3.8.1",
     "ts-node": "^10.9.2",
     "vitest": "^4.0.18"
   }

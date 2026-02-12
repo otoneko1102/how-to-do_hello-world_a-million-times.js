@@ -87,6 +87,14 @@ npm test [your_method_name]
 > [!WARNING]
 > `src/[dirname]/main.*` と `src/[dirname]/README.md` 以外のファイルを変更するPRは自動的にクローズされます。
 
+### すべてのファイルをテストする場合
+
+ひとつのディレクトリにつき60秒の制限時間が設定されます。
+
+```bash
+npm run test:all
+```
+
 ### 貢献者
 
 [![Contributors](https://contrib.rocks/image?repo=oto-home/how-to-do_hello-world_a-million-times.js)](https://github.com/oto-home/how-to-do_hello-world_a-million-times.js/graphs/contributors)

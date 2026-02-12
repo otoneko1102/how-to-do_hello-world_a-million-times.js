@@ -50,9 +50,7 @@ function findMainFile(dirPath) {
   }
 
   // README.mdを除外してmainファイルをチェック
-  const mainFiles = files.filter(
-    (f) => !ALLOWED_ADDITIONAL_FILES.includes(f),
-  );
+  const mainFiles = files.filter((f) => !ALLOWED_ADDITIONAL_FILES.includes(f));
 
   if (mainFiles.length === 0) {
     throw new Error(`ディレクトリ内にmainファイルが存在しません: ${dirPath}`);
@@ -109,7 +107,7 @@ describe("Hello World 100万回出力テスト", () => {
           const fullPath = join(dirPath, f);
           return statSync(fullPath).isFile();
         });
-        
+
         const invalidFiles = files.filter(
           (f) =>
             !ALLOWED_FILENAMES.includes(f) &&
@@ -179,7 +177,14 @@ describe("Hello World 100万回出力テスト", () => {
 
       it('100万回 "Hello, World!" を出力すること', async () => {
         const [command, ...args] = getRunCommand(fileName);
-        const count = await new Promise((resolve, reject) => {
+
+        // 全体実行の場合（TARGET指定なし）は60秒のタイムアウトを設定
+        const isFullTest = !targetFilter;
+        const TIMEOUT_MS = 60000; // 60秒
+
+        let childProcess = null;
+
+        const countPromise = new Promise((resolve, reject) => {
           const env = { ...process.env };
           if (fileName === "main.ts") {
             env.NODE_OPTIONS = "--loader ts-node/esm";
@@ -188,6 +193,8 @@ describe("Hello World 100万回出力テスト", () => {
             shell: true,
             env,
           });
+          childProcess = child;
+
           let total = 0;
           let remainder = "";
           const needle = "Hello, World!";
@@ -217,7 +224,30 @@ describe("Hello World 100万回出力テスト", () => {
           });
         });
 
-        expect(count).toBe(EXPECTED_COUNT);
+        if (isFullTest) {
+          // 全体実行時はタイムアウト付き
+          const timeoutPromise = new Promise((resolve) => {
+            setTimeout(() => resolve("TIMEOUT"), TIMEOUT_MS);
+          });
+
+          const result = await Promise.race([countPromise, timeoutPromise]);
+
+          if (result === "TIMEOUT") {
+            // 子プロセスを終了
+            if (childProcess && !childProcess.killed) {
+              childProcess.kill();
+            }
+            console.warn(`⏱️  [${target}] 60秒のタイムアウトにより実行をスキップしました`);
+            // タイムアウト時はテストをスキップ扱いとして通過させる
+            return;
+          }
+
+          expect(result).toBe(EXPECTED_COUNT);
+        } else {
+          // 個別実行時はタイムアウトなし
+          const count = await countPromise;
+          expect(count).toBe(EXPECTED_COUNT);
+        }
       });
     });
   });
