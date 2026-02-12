@@ -97,4 +97,7 @@ npm run test:all
 
 ### 貢献者
 
-[![Contributors](https://contrib.rocks/image?repo=oto-home/how-to-do_hello-world_a-million-times.js)](https://github.com/oto-home/how-to-do_hello-world_a-million-times.js/graphs/contributors)
+<a href="https://github.com/oto-home/how-to-do_hello-world_a-million-times.js/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=oto-home/how-to-do_hello-world_a-million-times.js" />
+</a>
+
